@@ -1,6 +1,6 @@
 import React, { use, useEffect, useRef } from 'react'
 import { useFrame, useGraph, useLoader } from '@react-three/fiber'
-import { useGLTF , useFBX, useAnimations} from '@react-three/drei'
+import { useGLTF } from '@react-three/drei'
 import { useControls } from 'leva'
 import { SkeletonUtils } from 'three-stdlib'
 import * as THREE from 'three'
@@ -15,24 +15,35 @@ const corresponding = {
   Y: 'viseme_I', Z: 'viseme_S'
 }
 
-export function Avatar(props, avatar_voice) {
+const extraVisemes = [
+  'viseme_CH',
+  'viseme_DD',
+  'viseme_E',
+  'viseme_EE',
+  'viseme_IH',
+  'viseme_OH',
+  'viseme_OU',
+  'viseme_RR',
+  'viseme_SS',
+  'viseme_nn',
+  'viseme_T',
+  'viseme_V'
+]
 
-  const run_avatar_voice = (avatar_voice) =>{
-    console.log("console from Avatar file and I am runing good here :) ", avatar_voice);
-  }
+const trackedVisemes = [...new Set([...Object.values(corresponding), ...Object.keys(corresponding)])]
+
+export function Avatar({ avatar_voice, mouthLevel = 0, ...props }) {
   const { smoothness, intensity } = useControls({
     smoothness: { value: 0.1, min: 0.01, max: 0.9 },
     intensity: { value: 0.8, min: 0.1, max: 1.5 }
   });
 
   const morphTargets = useRef({})
-  const targetMorphs = useRef({})
 
   const initializeMorphTargets = (nodes) => {
-    Object.values(corresponding).forEach((viseme) => {
+    trackedVisemes.forEach((viseme) => {
       if (!morphTargets.current[viseme]) {
         morphTargets.current[viseme] = 0;
-        targetMorphs.current[viseme] = 0;
       }
     });
   };
@@ -40,36 +51,12 @@ export function Avatar(props, avatar_voice) {
   const { scene } = useGLTF('/models/68a202ee4dd25e58782ee8a7.glb')
   const clone = React.useMemo(() => SkeletonUtils.clone(scene), [scene])
   const { nodes, materials } = useGraph(clone)
-  const fbx = useFBX('./animation/simpleStanding.fbx')
 
   useEffect(() => {
     if (nodes.Hips && nodes.Hips.children) {
       console.log('Model bones:', nodes.Hips.children.map(bone => bone.name));
     }
-    if (fbx.animations.length > 0) {
-      console.log('Animation tracks:', fbx.animations[0].tracks.map(track => track.name));
-    }
-  }, [nodes, fbx]);
-
-  const { actions } = useAnimations(fbx.animations, clone)
-  console.log('Available actions:', Object.keys(actions))
-
-  useEffect(() => {
-    const actionNames = Object.keys(actions);
-    if (actionNames.length > 0) {
-      const firstAction = actions[actionNames[0]];
-      if (firstAction) {
-        firstAction.reset().play();
-        firstAction.setEffectiveTimeScale(1);
-        firstAction.loop = THREE.LoopRepeat;
-      }
-    }
-    return () => {
-      actionNames.forEach(name => {
-        if (actions[name]) actions[name].stop();
-      });
-    };
-  }, [actions]);
+  }, [nodes]);
 
   useFrame((state, delta) => {
     if (!nodes.Wolf3D_Head || !nodes.Wolf3D_Teeth) return;
@@ -78,49 +65,66 @@ export function Avatar(props, avatar_voice) {
     }
   });
 
-    //asking voice form the server 
-    const isFetching = useRef(false);
+  // Apply mouthLevel to morph targets (simple mapping to a few visemes)
+  useFrame(() => {
+    if (!nodes.Wolf3D_Head) return;
+    // ensure morphTargets are initialized
+    if (Object.keys(morphTargets.current).length === 0) initializeMorphTargets(nodes);
 
-    const fetchServerAudio = async () => {
-      if (isFetching.current) return;
-      isFetching.current = true;
-      try {
-        console.log("I am asking voice from server...");
-      const response = await fetch("http://localhost:8080/voice");
-      const data = await response.json();
-      console.log(data);
-      console.log(`Got data from server ${data}`);
-        if(data){
-          console.log("Bro!!!!! I got the data formt the server form the server ");
-          console.log(data);
-          playAudio(data)
+    // Map mouthLevel to viseme targets
+  const normalized = Math.max(0, Math.min(1, mouthLevel));
+  const target = Math.min(1, normalized * 0.32 * intensity);
+
+    const wide = Math.min(1, target * 0.85);
+    const narrow = target * 0.5;
+    const consonant = Math.min(target * 0.8, 0.55);
+
+    const targetVals = {};
+    trackedVisemes.forEach((viseme) => {
+      targetVals[viseme] = 0;
+    });
+
+    targetVals.viseme_AA = target;
+    targetVals.viseme_E = wide * 0.8;
+    targetVals.viseme_I = wide * 0.7;
+    targetVals.viseme_EE = wide * 0.65;
+    targetVals.viseme_IH = wide * 0.6;
+    targetVals.viseme_O = target * 0.75;
+    targetVals.viseme_OH = target * 0.72;
+    targetVals.viseme_OU = target * 0.65;
+    targetVals.viseme_U = narrow;
+    targetVals.viseme_PP = consonant * 0.55;
+    targetVals.viseme_FF = consonant * 0.6;
+    targetVals.viseme_TH = consonant * 0.55;
+    targetVals.viseme_DD = consonant * 0.5;
+    targetVals.viseme_CH = consonant * 0.65;
+    targetVals.viseme_SS = consonant * 0.45;
+    targetVals.viseme_S = consonant * 0.35;
+    targetVals.viseme_T = consonant * 0.5;
+    targetVals.viseme_kk = consonant * 0.6;
+    targetVals.viseme_nn = consonant * 0.4;
+    targetVals.viseme_RR = target * 0.3;
+    targetVals.viseme_V = consonant * 0.45;
+
+    // Smooth and apply
+    Object.entries(targetVals).forEach(([viseme, val]) => {
+      const cur = morphTargets.current[viseme] || 0;
+      const next = THREE.MathUtils.lerp(cur, val, smoothness);
+      morphTargets.current[viseme] = THREE.MathUtils.clamp(next, 0, 1);
+    });
+
+    // Write morph target influences into meshes that have them
+    ['Wolf3D_Head', 'Wolf3D_Teeth', 'Wolf3D_Body'].forEach((meshName) => {
+      const mesh = nodes[meshName];
+      if (!mesh || !mesh.morphTargetDictionary || !mesh.morphTargetInfluences) return;
+      Object.keys(morphTargets.current).forEach((viseme) => {
+        const idx = mesh.morphTargetDictionary[viseme];
+        if (typeof idx === 'number') {
+          mesh.morphTargetInfluences[idx] = morphTargets.current[viseme];
         }
-      } catch (err) {
-      console.log("no response yet, retrying...", err);
-          setTimeout(fetchServerAudio, 1000);
-      } finally {
-      isFetching.current = false;
-      }
-    };
-
-    useEffect(() => {
-      fetchServerAudio();
-    }, []);
-
-
-    const playAudio = (data) => {
-      let audioBase64 = data.audioBase64.audios;
-      let binary = atob(audioBase64);
-      let len = binary.length;
-      let buffer = new Uint8Array(len);
-      for (let i = 0; i < len; i++) {
-        buffer[i] = binary.charCodeAt(i);
-      }
-      let blob = new Blob([buffer], { type: 'audio/wav' });
-      let url = URL.createObjectURL(blob);
-      let audio = new Audio(url);
-      audio.play();
-    }
+      });
+    });
+  });
 
   return (
     <group {...props} dispose={null}>

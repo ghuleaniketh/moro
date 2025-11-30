@@ -11,6 +11,7 @@ export default function VoicePage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const audioChunksRef = useRef([]);
   const [responseAudioUrl, setResponseAudioUrl] = useState(null);
+  const [mouthLevel, setMouthLevel] = useState(0);
 
   // Start recording and open WebSocket
   const startRecording = async () => {
@@ -24,7 +25,7 @@ export default function VoicePage() {
       ws.current.addEventListener('close', async () => {
         console.log('WebSocket connection closed');
         setIsProcessing(true); // Now try to fetch response audio
-        // await fetchServerAudio();
+        await fetchServerAudio();
       });
 
       ws.current.addEventListener('error', (error) => {
@@ -84,60 +85,98 @@ export default function VoicePage() {
   };
 
   // Fetch audio from server after recording/upload is done
-  // const fetchServerAudio = async () => {
-  //   try {
-  //     const response = await fetch("http://localhost:8080/voice");
-  //     const data = await response.json();
-  //     <Experience avatar_voice = {data} />
-  //     console.log(data);
-  //     console.log(`Got data from server ${data}`);
-
-  //     if (data.audioBase64 && data.audioBase64.audios) {
-  //     playAudioChunks(data.audioBase64.audios);
-  //   }
-
-  //   } catch (err) {
-  //     console.log("no response yet, retrying...",err);
-  //     setTimeout(fetchServerAudio, 5000);
-  //   }
-  // };
+  const fetchServerAudio = async () => {
+    try {
+      const response = await fetch("http://localhost:8080/voice");
+      const data = await response.json();
+      console.log('server audio response', data);
+      if (data && data.audioBase64 && data.audioBase64.audios) {
+        const audios = data.audioBase64.audios;
+        // play and analyze
+        playAudioChunks(Array.isArray(audios) ? audios : [audios]);
+      }
+    } catch (err) {
+      console.log("no response yet, retrying...", err);
+      setTimeout(fetchServerAudio, 5000);
+    }
+  };
 
 
   function playAudioChunks(base64Array) {
-  let current = 0;
+    let current = 0;
 
-  function playNext() {
-    if (current >= base64Array.length) return;
+    function playNext() {
+      if (current >= base64Array.length) return;
 
-    const base64 = base64Array[current];
-    const binary = atob(base64);
-    const len = binary.length;
-    const buffer = new Uint8Array(len);
-    for (let i = 0; i < len; i++) {
-      buffer[i] = binary.charCodeAt(i);
+      const base64 = base64Array[current];
+      const binary = atob(base64);
+      const len = binary.length;
+      const buffer = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+        buffer[i] = binary.charCodeAt(i);
+      }
+
+      const audioBlob = new Blob([buffer], { type: 'audio/wav' });
+      const audioURL = URL.createObjectURL(audioBlob);
+      const audio = new Audio(audioURL);
+
+      // expose URL for optional UI/audio element
+      setResponseAudioUrl(audioURL);
+
+      // setup analyser to drive mouthLevel
+      let audioCtx = null;
+      let analyser = null;
+      let rafId = null;
+      try {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const source = audioCtx.createMediaElementSource(audio);
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 2048;
+        const dataArray = new Uint8Array(analyser.fftSize);
+        source.connect(analyser);
+        analyser.connect(audioCtx.destination);
+
+        const update = () => {
+          analyser.getByteTimeDomainData(dataArray);
+          let sum = 0;
+          for (let i = 0; i < dataArray.length; i++) {
+            const v = (dataArray[i] - 128) / 128;
+            sum += v * v;
+          }
+          const rms = Math.sqrt(sum / dataArray.length);
+          const normalized = Math.min(1, rms * 3);
+          setMouthLevel(normalized);
+          rafId = requestAnimationFrame(update);
+        };
+        audio.onended = () => {
+          if (rafId) cancelAnimationFrame(rafId);
+          setMouthLevel(0);
+          try { audioCtx.close(); } catch (e) {}
+        };
+        // kick off update when audio plays
+        audio.addEventListener('play', () => {
+          update();
+        });
+      } catch (err) {
+        // failed to create analyser — still play audio
+        console.warn('Audio analyser unavailable', err);
+      }
+
+      audio.onended = () => {
+        current += 1;
+        playNext();
+      };
+      audio.play();
     }
 
-
-    const audioBlob = new Blob([buffer], { type: 'audio/wav' });
-    const audioURL = URL.createObjectURL(audioBlob);
-    const audio = new Audio(audioURL);
-
-    audio.onended = () => {
-      current += 1;
-      playNext(); 
-    };
-    audio.play();
+    playNext();
   }
-
-  playNext();
-  startRecording();
-}
   return (
     <>
     <Canvas shadows camera={{ position: [0,0,8], fov: 30 }}>
       
-      <color attach="background" args={["#ececec"]} />
-      <Experience />
+  <color attach="background" args={["#ececec"]} />
+  <Experience mouthLevel={mouthLevel} />
     </Canvas>
     <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif' }}>
       <h2>Voice Assistant</h2>
