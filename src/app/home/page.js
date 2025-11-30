@@ -2,6 +2,7 @@
 import React, { useRef, useState } from 'react';
 import { Canvas } from "@react-three/fiber";
 import { Experience } from "@/componets/Experience";
+import { Avatar } from '@/componets/Avatar';
 
 export default function VoicePage() {
   const ws = useRef(null);
@@ -23,7 +24,7 @@ export default function VoicePage() {
       ws.current.addEventListener('close', async () => {
         console.log('WebSocket connection closed');
         setIsProcessing(true); // Now try to fetch response audio
-        await fetchServerAudio();
+        // await fetchServerAudio();
       });
 
       ws.current.addEventListener('error', (error) => {
@@ -83,22 +84,23 @@ export default function VoicePage() {
   };
 
   // Fetch audio from server after recording/upload is done
-  const fetchServerAudio = async () => {
-    try {
-      const response = await fetch("http://localhost:8080/voice");
-      const data = await response.json();
-      console.log(data);
-      console.log(`Got data from server ${data}`);
+  // const fetchServerAudio = async () => {
+  //   try {
+  //     const response = await fetch("http://localhost:8080/voice");
+  //     const data = await response.json();
+  //     <Experience avatar_voice = {data} />
+  //     console.log(data);
+  //     console.log(`Got data from server ${data}`);
 
-      if (data.audioBase64 && data.audioBase64.audios) {
-      playAudioChunks(data.audioBase64.audios);
-    }
+  //     if (data.audioBase64 && data.audioBase64.audios) {
+  //     playAudioChunks(data.audioBase64.audios);
+  //   }
 
-    } catch (err) {
-      console.log("no response yet, retrying...",err);
-      setTimeout(fetchServerAudio, 5000);
-    }
-  };
+  //   } catch (err) {
+  //     console.log("no response yet, retrying...",err);
+  //     setTimeout(fetchServerAudio, 5000);
+  //   }
+  // };
 
 
   function playAudioChunks(base64Array) {
@@ -108,7 +110,6 @@ export default function VoicePage() {
     if (current >= base64Array.length) return;
 
     const base64 = base64Array[current];
-    // Convert base64 to binary
     const binary = atob(base64);
     const len = binary.length;
     const buffer = new Uint8Array(len);
@@ -116,14 +117,14 @@ export default function VoicePage() {
       buffer[i] = binary.charCodeAt(i);
     }
 
-    // Create blob: WAV audio
+
     const audioBlob = new Blob([buffer], { type: 'audio/wav' });
     const audioURL = URL.createObjectURL(audioBlob);
     const audio = new Audio(audioURL);
 
     audio.onended = () => {
       current += 1;
-      playNext(); // Play next chunk after current finishes
+      playNext(); 
     };
     audio.play();
   }

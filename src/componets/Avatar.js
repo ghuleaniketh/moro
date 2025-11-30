@@ -15,7 +15,11 @@ const corresponding = {
   Y: 'viseme_I', Z: 'viseme_S'
 }
 
-export function Avatar(props) {
+export function Avatar(props, avatar_voice) {
+
+  const run_avatar_voice = (avatar_voice) =>{
+    console.log("console from Avatar file and I am runing good here :) ", avatar_voice);
+  }
   const { smoothness, intensity } = useControls({
     smoothness: { value: 0.1, min: 0.01, max: 0.9 },
     intensity: { value: 0.8, min: 0.1, max: 1.5 }
@@ -36,7 +40,7 @@ export function Avatar(props) {
   const { scene } = useGLTF('/models/68a202ee4dd25e58782ee8a7.glb')
   const clone = React.useMemo(() => SkeletonUtils.clone(scene), [scene])
   const { nodes, materials } = useGraph(clone)
-  const fbx = useFBX('/animation/simpleStanding.fbx')
+  const fbx = useFBX('./animation/simpleStanding.fbx')
 
   useEffect(() => {
     if (nodes.Hips && nodes.Hips.children) {
@@ -73,6 +77,50 @@ export function Avatar(props) {
       initializeMorphTargets(nodes);
     }
   });
+
+    //asking voice form the server 
+    const isFetching = useRef(false);
+
+    const fetchServerAudio = async () => {
+      if (isFetching.current) return;
+      isFetching.current = true;
+      try {
+        console.log("I am asking voice from server...");
+      const response = await fetch("http://localhost:8080/voice");
+      const data = await response.json();
+      console.log(data);
+      console.log(`Got data from server ${data}`);
+        if(data){
+          console.log("Bro!!!!! I got the data formt the server form the server ");
+          console.log(data);
+          playAudio(data)
+        }
+      } catch (err) {
+      console.log("no response yet, retrying...", err);
+          setTimeout(fetchServerAudio, 1000);
+      } finally {
+      isFetching.current = false;
+      }
+    };
+
+    useEffect(() => {
+      fetchServerAudio();
+    }, []);
+
+
+    const playAudio = (data) => {
+      let audioBase64 = data.audioBase64.audios;
+      let binary = atob(audioBase64);
+      let len = binary.length;
+      let buffer = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+        buffer[i] = binary.charCodeAt(i);
+      }
+      let blob = new Blob([buffer], { type: 'audio/wav' });
+      let url = URL.createObjectURL(blob);
+      let audio = new Audio(url);
+      audio.play();
+    }
 
   return (
     <group {...props} dispose={null}>
