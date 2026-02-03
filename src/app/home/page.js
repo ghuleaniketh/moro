@@ -2,10 +2,9 @@
 import React, { useRef, useState } from 'react';
 import { Canvas } from "@react-three/fiber";
 import { Experience } from "@/componets/Experience";
-import { Avatar } from '@/componets/Avatar';
+
 
 export default function VoicePage() {
-  const ws = useRef(null);
   const mediaRecorder = useRef(null);
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -13,26 +12,9 @@ export default function VoicePage() {
   const [responseAudioUrl, setResponseAudioUrl] = useState(null);
   const [mouthLevel, setMouthLevel] = useState(0);
 
-  // Start recording and open WebSocket
+  // Start recording
   const startRecording = async () => {
     try {
-      ws.current = new WebSocket("ws://localhost:8080");
-      ws.current.addEventListener('open', () => {
-        console.log('Connected to server');
-        ws.current.send('hello from client!');
-      });
-
-      ws.current.addEventListener('close', async () => {
-        console.log('WebSocket connection closed');
-        setIsProcessing(true); // Now try to fetch response audio
-        await fetchServerAudio();
-      });
-
-      ws.current.addEventListener('error', (error) => {
-        console.error('WebSocket error:', error);
-        setIsProcessing(false);
-      });
-
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       let mimeType = 'audio/webm';
       if (!MediaRecorder.isTypeSupported(mimeType)) {
@@ -48,26 +30,18 @@ export default function VoicePage() {
       mediaRecorder.current.ondataavailable = (event) => {
         if (event.data.size > 0) {
           audioChunksRef.current.push(event.data);
-          // Stream chunks immediately
-          if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-            ws.current.send(event.data);
-          }
         }
       };
 
       mediaRecorder.current.onstop = async () => {
-        // After stop, send combined audio and close socket
         const blob = new Blob(audioChunksRef.current, { type: mimeType || 'audio/webm' });
-        const arrayBuffer = await blob.arrayBuffer();
-        if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-          ws.current.send(arrayBuffer);
-          ws.current.close(); // Close triggers processing and frontend fetch
-        }
         stream.getTracks().forEach(track => track.stop());
-        setIsProcessing(true);
+        
+        // Send to server
+        await sendAudioToServer(blob);
       };
 
-      mediaRecorder.current.start(1000); // record in chunks
+      mediaRecorder.current.start(1000);
       setIsRecording(true);
       setIsProcessing(false);
     } catch (error) {
@@ -84,23 +58,31 @@ export default function VoicePage() {
     setIsRecording(false);
   };
 
-  // Fetch audio from server after recording/upload is done
-  const fetchServerAudio = async () => {
+  // Send audio file to /chat endpoint
+  const sendAudioToServer = async (audioBlob) => {
+    setIsProcessing(true);
     try {
-      const response = await fetch("http://localhost:8080/voice");
+      const formData = new FormData();
+      formData.append('audio', audioBlob, 'recording.webm');
+
+      const response = await fetch("http://localhost:8080/chat", {
+        method: 'POST',
+        body: formData
+      });
+
       const data = await response.json();
-      console.log('server audio response', data);
-      if (data && data.audioBase64 && data.audioBase64.audios) {
+      console.log('Server response:', data);
+
+      if (data.audioBase64 && data.audioBase64.audios) {
         const audios = data.audioBase64.audios;
-        // play and analyze
         playAudioChunks(Array.isArray(audios) ? audios : [audios]);
       }
     } catch (err) {
-      console.log("no response yet, retrying...", err);
-      setTimeout(fetchServerAudio, 5000);
+      console.error("Error sending audio:", err);
+    } finally {
+      setIsProcessing(false);
     }
   };
-
 
   function playAudioChunks(base64Array) {
     let current = 0;
@@ -173,12 +155,12 @@ export default function VoicePage() {
   }
   return (
     <>
-    <Canvas shadows camera={{ position: [0,0,8], fov: 30 }}>
+    <Canvas shadows camera={{ position: [0,0,8], fov: 30 }} style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh' }}>
       
   <color attach="background" args={["#ececec"]} />
   <Experience mouthLevel={mouthLevel} />
     </Canvas>
-    <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif' }}>
+    <div style={{ position: 'fixed', bottom: '20px', left: '20px', padding: '20px', fontFamily: 'Arial, sans-serif', backgroundColor: 'rgba(255, 255, 255, 0.9)', borderRadius: '10px', maxWidth: '400px', zIndex: 10 }}>
       <h2>Voice Assistant</h2>
       <div style={{ marginBottom: '20px' }}>
         <button
@@ -226,14 +208,7 @@ export default function VoicePage() {
             🤖 Processing your voice... Please wait
           </p>
         )}
-        {responseAudioUrl && (
-          <div>
-            <p style={{ color: '#673ab7', fontWeight: 'bold' }}>
-              ▶️ Response Audio:
-            </p>
-            <audio controls src={responseAudioUrl} style={{ width: '100%' }} />
-          </div>
-        )}
+       
       </div>
     </div>
     </>

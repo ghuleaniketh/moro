@@ -1,7 +1,6 @@
-import React, { use, useEffect, useRef } from 'react'
-import { useFrame, useGraph, useLoader } from '@react-three/fiber'
+import React, { useEffect, useRef } from 'react'
+import { useFrame, useGraph } from '@react-three/fiber'
 import { useGLTF } from '@react-three/drei'
-import { useControls } from 'leva'
 import { SkeletonUtils } from 'three-stdlib'
 import * as THREE from 'three'
 
@@ -32,13 +31,14 @@ const extraVisemes = [
 
 const trackedVisemes = [...new Set([...Object.values(corresponding), ...Object.keys(corresponding)])]
 
-export function Avatar({ avatar_voice, mouthLevel = 0, ...props }) {
-  const { smoothness, intensity } = useControls({
-    smoothness: { value: 0.1, min: 0.01, max: 0.9 },
-    intensity: { value: 0.8, min: 0.1, max: 1.5 }
-  });
+export function Avatar({ mouthLevel = 0, ...props }) {
+  const smoothness = 0.9;
+  const intensity = 0.7;
 
   const morphTargets = useRef({})
+  const headRef = useRef()
+  const spineRef = useRef()
+  const timeRef = useRef(0)
 
   const initializeMorphTargets = (nodes) => {
     trackedVisemes.forEach((viseme) => {
@@ -66,14 +66,62 @@ export function Avatar({ avatar_voice, mouthLevel = 0, ...props }) {
   });
 
   // Apply mouthLevel to morph targets (simple mapping to a few visemes)
-  useFrame(() => {
+  useFrame((state, delta) => {
     if (!nodes.Wolf3D_Head) return;
     // ensure morphTargets are initialized
     if (Object.keys(morphTargets.current).length === 0) initializeMorphTargets(nodes);
 
+    // Animate idle behavior
+    timeRef.current += delta;
+    
+    // Breathing animation (chest/spine)
+    if (nodes.Spine1) {
+      const breathe = Math.sin(timeRef.current * 1.5) * 0.01;
+      nodes.Spine1.rotation.x = breathe;
+    }
+    
+    // Bring arms closer to body
+    if (nodes.LeftShoulder) {
+      nodes.LeftShoulder.rotation.z = -1.5;
+    }
+    if (nodes.RightShoulder) {
+      nodes.RightShoulder.rotation.z = 1.5;
+    }
+    if (nodes.LeftArm) {
+      nodes.LeftArm.rotation.x = 1.2;
+    }
+    if (nodes.RightArm) {
+      nodes.RightArm.rotation.x = 1.2;
+    }
+    
+    // Subtle head movements
+    if (nodes.Head) {
+      const headSway = Math.sin(timeRef.current * 0.5) * 0.02;
+      const headNod = Math.sin(timeRef.current * 2) * 0.02;
+      nodes.Head.rotation.y = headSway;
+      nodes.Head.rotation.x = headNod - 0.25;
+    }
+    // Blinking animation
+    const blinkCycle = timeRef.current % 4;
+    let blinkValue = 0;
+    if (blinkCycle > 3.8) {
+      blinkValue = Math.sin((blinkCycle - 3.8) * Math.PI * 10);
+    }
+    
+    // Apply blink to eyes
+    ['EyeLeft', 'EyeRight'].forEach(eyeName => {
+      const eye = nodes[eyeName];
+      if (eye && eye.morphTargetDictionary && eye.morphTargetInfluences) {
+        const blinkIdx = eye.morphTargetDictionary['eyesClosed'] || eye.morphTargetDictionary['eyeBlinkLeft'] || eye.morphTargetDictionary['eyeBlinkRight'];
+        if (typeof blinkIdx === 'number') {
+          eye.morphTargetInfluences[blinkIdx] = blinkValue;
+        }
+      }
+    });
+
     // Map mouthLevel to viseme targets
-  const normalized = Math.max(0, Math.min(1, mouthLevel));
-  const target = Math.min(1, normalized * 0.32 * intensity);
+    const normalized = Math.max(0, Math.min(1, mouthLevel));
+    const target = Math.min(1, normalized * 0.32 * intensity);
 
     const wide = Math.min(1, target * 0.85);
     const narrow = target * 0.5;
@@ -129,17 +177,19 @@ export function Avatar({ avatar_voice, mouthLevel = 0, ...props }) {
   return (
     <group {...props} dispose={null}>
       <primitive object={nodes.Hips} />
-      {['Wolf3D_Hair', 'Wolf3D_Body', 'Wolf3D_Outfit_Bottom', 'Wolf3D_Outfit_Footwear', 'Wolf3D_Outfit_Top', 'EyeLeft', 'EyeRight', 'Wolf3D_Head', 'Wolf3D_Teeth'].map((key) => (
-        <skinnedMesh
-          key={key}
-          name={key}
-          geometry={nodes[key].geometry}
-          material={materials[nodes[key].material?.name] || materials.Wolf3D_Skin}
-          skeleton={nodes[key].skeleton}
-          morphTargetDictionary={nodes[key].morphTargetDictionary}
-          morphTargetInfluences={nodes[key].morphTargetInfluences}
-        />
-      ))}
+      <group rotation={[0.1, 0, 0]}>
+        {['Wolf3D_Hair', 'Wolf3D_Body', 'Wolf3D_Outfit_Bottom', 'Wolf3D_Outfit_Footwear', 'Wolf3D_Outfit_Top', 'EyeLeft', 'EyeRight', 'Wolf3D_Head', 'Wolf3D_Teeth'].map((key) => (
+          <skinnedMesh
+            key={key}
+            name={key}
+            geometry={nodes[key].geometry}
+            material={materials[nodes[key].material?.name] || materials.Wolf3D_Skin}
+            skeleton={nodes[key].skeleton}
+            morphTargetDictionary={nodes[key].morphTargetDictionary}
+            morphTargetInfluences={nodes[key].morphTargetInfluences}
+          />
+        ))}
+      </group>
     </group>
   )
 }
