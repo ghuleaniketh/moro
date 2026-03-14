@@ -65,11 +65,16 @@ export default function MoraPage() {
       formData.append('audio', audioBlob, 'recording.webm');
 
       const response = await fetch("https://moro-backend.onrender.com/chat", {
-        method: 'POST',
+        method: "POST",
         body: formData
       });
 
+      if (!response.ok) {
+        throw new Error(`Server error: ${response.status}`);
+      }
+
       const data = await response.json();
+
       console.log('Server response:', data);
 
       if (data.audioBase64 && data.audioBase64.audios) {
