@@ -1,4 +1,4 @@
-import { Environment, OrbitControls, useTexture } from "@react-three/drei";
+import { Environment, useTexture } from "@react-three/drei";
 import { useEffect } from "react";
 import { Avatar } from "./Avatar";
 import { useThree } from "@react-three/fiber";
@@ -12,7 +12,6 @@ useEffect(() => {
 }, [avatar_voice]);
   return (
     <>   
-      <OrbitControls />
       <Avatar avatar_voice={avatar_voice} mouthLevel={mouthLevel} position= {[0 , -3.2 , 5]} scale={2} />
       <Environment preset="sunset" />
       <mesh>
