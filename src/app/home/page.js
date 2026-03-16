@@ -2,6 +2,7 @@
 import React, { useRef, useState } from 'react';
 import { Canvas } from "@react-three/fiber";
 import { Experience } from "@/componets/Experience";
+import Voice from "./chat"
 
 
 export default function VoicePage() {
@@ -14,6 +15,7 @@ export default function VoicePage() {
 
   // Start recording
   const startRecording = async () => {
+    console.log("i am recing bro!!!!!!!!!!!!!!!!!")
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       let mimeType = 'audio/webm';
@@ -52,6 +54,7 @@ export default function VoicePage() {
 
   // Stop recording
   const stopRecording = () => {
+    console.log("rec stop bro!!!!!!!!!!!!!!!!!")
     if (mediaRecorder.current && mediaRecorder.current.state !== "inactive") {
       mediaRecorder.current.stop();
     }
@@ -65,18 +68,22 @@ export default function VoicePage() {
       const formData = new FormData();
       formData.append('audio', audioBlob, 'recording.webm');
 
-      const response = await fetch("https://moro-backend.onrender.com/chat", {
-        method: 'POST',
-        body: formData
-      });
+      
 
-      const data = await response.json();
+      // const response = await fetch("https://moro-backend.onrender.com/chat", {
+      //   method: 'POST',
+      //   body: formData
+      // });
+
+
+      console.log("Sending audio to server...");
+      const data = Voice(formData)
       console.log('Server response:', data);
 
-      if (data.audioBase64 && data.audioBase64.audios) {
-        const audios = data.audioBase64.audios;
-        playAudioChunks(Array.isArray(audios) ? audios : [audios]);
-      }
+      // if (data.audioBase64 && data.audioBase64.audios) {
+      //   const audios = data.audioBase64.audios;
+      //   playAudioChunks(Array.isArray(audios) ? audios : [audios]);
+      // }
     } catch (err) {
       console.error("Error sending audio:", err);
     } finally {
