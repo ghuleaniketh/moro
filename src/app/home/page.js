@@ -76,9 +76,10 @@ export default function VoicePage() {
       // });
 
 
-      console.log("Sending audio to server...");
-      const data = Voice(formData)
-      console.log('Server response:', data);
+  console.log("Sending audio to server...");
+  // call Voice and await its result so we can log or handle async responses
+  const data = await Voice(formData);
+  console.log('Server response:', data);
 
       // if (data.audioBase64 && data.audioBase64.audios) {
       //   const audios = data.audioBase64.audios;
