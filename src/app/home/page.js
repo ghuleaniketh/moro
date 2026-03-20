@@ -61,36 +61,35 @@ export default function VoicePage() {
     setIsRecording(false);
   };
 
-  // Send audio file to /chat endpoint
-  const sendAudioToServer = async (audioBlob) => {
-    setIsProcessing(true);
-    try {
-      const formData = new FormData();
-      formData.append('audio', audioBlob, 'recording.webm');
+  // send audio file to /chat endpoint
+ const sendAudioToServer = async (audioBlob) => {
+  setIsProcessing(true);
+  try {
+    const formData = new FormData();
+    formData.append('audio', audioBlob, 'recording.webm');
 
-      
+    console.log("Sending audio to server...");
 
-      // const response = await fetch("https://moro-backend.onrender.com/chat", {
-      //   method: 'POST',
-      //   body: formData
-      // });
+    // const response = await fetch("https://moro-backend.onrender.com/chat", {
+    const response = await fetch("http://localhost:8080/chat", {
+      method: 'POST',
+      body: formData
+    });
 
+    const data = await response.json();
+    console.log('Server response:', data);
 
-  console.log("Sending audio to server...");
-  // call Voice and await its result so we can log or handle async responses
-  const data = await Voice(formData);
-  console.log('Server response:', data);
-
-      // if (data.audioBase64 && data.audioBase64.audios) {
-      //   const audios = data.audioBase64.audios;
-      //   playAudioChunks(Array.isArray(audios) ? audios : [audios]);
-      // }
-    } catch (err) {
-      console.error("Error sending audio:", err);
-    } finally {
-      setIsProcessing(false);
+    if (data.audioBase64 && data.audioBase64.audios) {
+      const audios = data.audioBase64.audios;
+      playAudioChunks(Array.isArray(audios) ? audios : [audios]);
     }
-  };
+
+  } catch (err) {
+    console.error("Error sending audio:", err);
+  } finally {
+    setIsProcessing(false);
+  }
+};
 
   function playAudioChunks(base64Array) {
     let current = 0;
