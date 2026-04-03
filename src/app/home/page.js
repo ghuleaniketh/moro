@@ -2,7 +2,6 @@
 import React, { useRef, useState } from 'react';
 import { Canvas } from "@react-three/fiber";
 import { Experience } from "@/componets/Experience";
-import Voice from "./chat"
 
 
 export default function VoicePage() {
@@ -15,7 +14,7 @@ export default function VoicePage() {
 
   // Start recording
   const startRecording = async () => {
-    console.log("i am recing bro!!!!!!!!!!!!!!!!!")
+    console.log("i am rec ing bro!!!!!!!!!!!!!!!!!")
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       let mimeType = 'audio/webm';
@@ -68,16 +67,16 @@ export default function VoicePage() {
     const formData = new FormData();
     formData.append('audio', audioBlob, 'recording.webm');
 
-    console.log("Sending audio to server...");
+    
 
-    // const response = await fetch("https://moro-backend.onrender.com/chat", {
-    const response = await fetch("http://localhost:8080/chat", {
+    const response = await fetch("https://moro-backend.onrender.com/chat", {
+    // const response = await fetch("http://localhost:8080/chat", {
       method: 'POST',
       body: formData
     });
-
+    console.log(" audio send to server... Wiating for response");
     const data = await response.json();
-    console.log('Server response:', data);
+    console.log('Hey I got the respoonse:', data);
 
     if (data.audioBase64 && data.audioBase64.audios) {
       const audios = data.audioBase64.audios;
