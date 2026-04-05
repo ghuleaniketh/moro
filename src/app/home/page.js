@@ -69,8 +69,8 @@ export default function VoicePage() {
 
     
 
-    const response = await fetch("https://moro-backend.onrender.com/chat", {
-    // const response = await fetch("http://localhost:8080/chat", {
+    // const response = await fetch("https://moro-backend.onrender.com/chat", {
+    const response = await fetch("http://localhost:8080/chat", {
       method: 'POST',
       body: formData
     });
