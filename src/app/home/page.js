@@ -69,7 +69,7 @@ export default function VoicePage() {
 
     
     console.log("i am sending the req to the AWS server try2");
-    const response = await fetch("http://13.126.195.167:8080/chat", {
+    const response = await fetch("https://morobackend.duckdns.org/chat", {
       method: 'POST',
       body: formData
     });
