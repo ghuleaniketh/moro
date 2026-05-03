@@ -64,7 +64,7 @@ export default function MoraPage() {
       const formData = new FormData();
       formData.append('audio', audioBlob, 'recording.webm');
       console.log("Sending audio to server, size:", audioBlob.size);
-      const response = await fetch("http://localhost:8080/chat", {
+      const response = await fetch("http://13.126.195.167:8080/chat", {
         method: "POST",
         body: formData
       });
