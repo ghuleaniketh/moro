@@ -68,8 +68,8 @@ export default function VoicePage() {
     formData.append('audio', audioBlob, 'recording.webm');
 
     
-
-    const response = await fetch("https://moro-backend.onrender.com/chat", {
+    console.log("i am sending the req to the AWS server try2");
+    const response = await fetch("http://13.126.195.167:8080/chat", {
       method: 'POST',
       body: formData
     });
