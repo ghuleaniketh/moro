@@ -3,6 +3,7 @@ import React, { useRef, useState } from 'react';
 import { Canvas } from "@react-three/fiber";
 import { Experience } from "@/componets/Experience";
 
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || "";
 
 export default function VoicePage() {
   const mediaRecorder = useRef(null);
@@ -64,12 +65,15 @@ export default function VoicePage() {
  const sendAudioToServer = async (audioBlob) => {
   setIsProcessing(true);
   try {
+    if (!BACKEND_URL) {
+      throw new Error('Backend URL is not configured. Set NEXT_PUBLIC_BACKEND_URL in your environment.');
+    }
+
     const formData = new FormData();
     formData.append('audio', audioBlob, 'recording.webm');
 
     
-    console.log("i am sending the req to the AWS server try2");
-    const response = await fetch("https://morobackend.duckdns.org/chat", {
+    const response = await fetch(`${BACKEND_URL}/chat`, {
       method: 'POST',
       body: formData
     });
